@@ -1,0 +1,219 @@
+// Hive中创建表和加载数据的脚本：
+CREATE TABLE IF NOT EXISTS consumption (
+    province STRING,
+    city STRING,
+    shop_id STRING,
+    shop_name STRING,
+    rating FLOAT,
+    avg_spending FLOAT,
+    category_rating STRING
+)
+ROW FORMAT DELIMITED
+FIELDS TERMINATED BY ','
+STORED AS TEXTFILE;
+
+LOAD DATA INPATH '/user/hive/warehouse/山西_cleaned.csv' INTO TABLE consumption;
+
+
+-- 各区域的平均人均消费
+SELECT city, AVG(avg_spending) AS average_spending
+FROM consumption
+GROUP BY city;
+
+-- 消费最高的前三个城市
+SELECT city, AVG(avg_spending) AS average_spending
+FROM consumption
+GROUP BY city
+ORDER BY average_spending DESC
+LIMIT 3;
+
+
+// 消费最高和最低的城市
+SELECT
+    city,
+    MAX(avg_spending) AS max_spending,
+    MIN(avg_spending) AS min_spending
+FROM consumption
+GROUP BY city;
+
+
+
+// 每个省的平均消费及店铺数量
+// 这个查询计算每个省的平均消费并统计每个省的店铺数量。
+SELECT
+    province,
+    AVG(avg_spending) AS average_spending,
+    COUNT(shop_id) AS number_of_shops
+FROM consumption
+GROUP BY province;
+
+
+按评分分级的消费数据统计
+这个查询根据店铺评分对消费进行分级统计，假设评分从1至5。
+
+sql
+Copy code
+SELECT
+    FLOOR(rating) AS rating_level,
+    COUNT(*) AS number_of_shops,
+    AVG(avg_spending) AS average_spending
+FROM consumption
+GROUP BY FLOOR(rating);
+4. 各城市月消费趋势
+假设数据中有日期字段（date），这个查询用于分析每个城市按月的消费趋势。
+
+sql
+Copy code
+SELECT
+    city,
+    CONCAT(YEAR(date), '-', LPAD(MONTH(date), 2, '0')) AS month,
+    AVG(avg_spending) AS monthly_avg_spending
+FROM consumption
+GROUP BY city, YEAR(date), MONTH(date)
+ORDER BY city, month;
+5. 消费与评分的相关性分析
+这个查询用于探索平均消费与星级评分之间的相关性。
+
+
+// SELECT
+    CORR(avg_spending, rating) AS correlation_coefficient
+FROM consumption;
+6. 高消费高评分店铺占比
+这个查询分析了平均消费高于指定阈值且评分高于某一级别的店铺占总店铺的比例。
+
+
+WITH high_quality_shops AS (
+    SELECT
+        *
+    FROM consumption
+    WHERE avg_spending > 100 AND rating > 4.5
+),
+total_shops AS (
+    SELECT
+        COUNT(*) AS total
+    FROM consumption
+)
+SELECT
+    (COUNT(*) / total.total) * 100 AS percentage_of_high_quality_shops
+FROM high_quality_shops, total_shops;
+
+// pom.xml
+<dependencies>
+    <dependency>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-web</artifactId>
+    </dependency>
+    <dependency>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-data-jpa</artifactId>
+    </dependency>
+    <dependency>
+        <groupId>mysql</groupId>
+        <artifactId>mysql-connector-java</artifactId>
+        <scope>runtime</scope>
+    </dependency>
+</dependencies>
+
+
+
+package com.example.demo.model;
+
+import javax.persistence.Entity;
+import javax.persistence.Id;
+
+@Entity
+public class Consumption {
+    @Id
+    private String id;
+    private String city;
+    private Double avgSpending;
+
+    // Getters and setters
+}
+
+
+package com.example.demo.repository;
+
+import org.springframework.data.jpa.repository.JpaRepository;
+import com.example.demo.model.Consumption;
+
+public interface ConsumptionRepository extends JpaRepository<Consumption, String> {
+}
+
+
+package com.example.demo.controller;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+import java.util.List;
+import com.example.demo.model.Consumption;
+import com.example.demo.repository.ConsumptionRepository;
+
+@RestController
+@RequestMapping("/api/consumption")
+public class ConsumptionController {
+
+    @Autowired
+    private ConsumptionRepository repository;
+
+    @GetMapping
+    public List<Consumption> getAllConsumptions() {
+        return repository.findAll();
+    }
+}
+
+
+
+vue create vue-echarts-project
+cd vue-echarts-project
+vue add echarts
+
+
+<template>
+  <div ref="main" style="width: 600px;height:400px;"></div>
+</template>
+
+<script>
+import * as echarts from 'echarts';
+
+export default {
+  name: 'ConsumptionChart',
+  mounted() {
+    this.fetchData();
+  },
+  methods: {
+    fetchData() {
+      fetch('/api/consumption')
+        .then(response => response.json())
+        .then(data => {
+          this.initChart(data);
+        });
+    },
+    initChart(data) {
+      var myChart = echarts.init(this.$refs.main);
+      var option = {
+        title: {
+          text: 'Average Spending by City'
+        },
+        tooltip: {},
+        xAxis: {
+          data: data.map(item => item.city)
+        },
+        yAxis: {},
+        series: [{
+          name: 'Average Spending',
+          type: 'bar',
+          data: data.map(item => item.avgSpending)
+        }]
+      };
+      myChart.setOption(option);
+    }
+  }
+}
+</script>
+
+
+
+
